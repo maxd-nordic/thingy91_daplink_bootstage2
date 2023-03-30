@@ -1,0 +1,43 @@
+name: Build DAPLink (Linux)
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+
+    steps:
+    - name: Checkout source files
+      uses: actions/checkout@v2
+      with:
+        submodules: recursive
+
+    - name: Install Embedded Arm Toolchain
+      run:  |
+        curl -O -L https://developer.arm.com/-/media/Files/downloads/gnu-rm/10.3-2021.07/gcc-arm-none-eabi-10.3-2021.07-x86_64-linux.tar.bz2
+        md5sum gcc-arm-none-eabi-10.3-2021.07-x86_64-linux.tar.bz2
+        echo Installing  in ${{ runner.temp }}/arm-gcc
+        mkdir -p ${{ runner.temp }}/arm-gcc
+        tar jvxf gcc-arm-none-eabi-10.3-2021.07-x86_64-linux.tar.bz2 -C ${{ runner.temp }}/arm-gcc --strip-components 1
+
+    - name: Compile
+      run:  |
+        export PATH="${{ runner.temp }}/arm-gcc/bin/:/home/runner/.local/bin:$PATH"
+        arm-none-eabi-gcc -mcpu=cortex-m4 -I nrfx/mdk/ -I CMSIS_5/CMSIS/Core/Include --specs=nosys.specs -T src/thingy91_nrf52840.ld -DNRF52840_XXAA -Os src/bl_stage2.c nrfx/mdk/gcc_startup_nrf52840.S nrfx/mdk/system_nrf52.c -o thingy91_nrf52840_bootstage_2.elf && arm-none-eabi-objcopy -O ihex thingy91_nrf52840_bootstage_2.elf thingy91_nrf52840_bootstage_2.hex
+
+
+    - name: Upload test artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: firmware-dev-${{github.run_number}}
+        path: |
+          thingy91_nrf52840_bootstage_2.elf
+          thingy91_nrf52840_bootstage_2.hex
